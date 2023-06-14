@@ -1,0 +1,138 @@
+library(terra)
+library(raster)
+
+#https://archive.eol.ucar.edu/projects/ceop/dm/documents/refdata_report/eqns.html
+
+# e = 6.112*exp((17.67*Td)/(Td + 243.5));
+# q = (0.622 * e)/(p - (0.378 * e));
+# es = 6.112*exp((17.67*T)/(T + 243.5));
+# RH = 100.0 * (e/es);
+# es = 6.112*exp((17.67*T)/(T + 243.5));
+
+tavg_path <- "D:/1PhDwork/0GPP_China/2temp/8day_fang/temp_"
+shum_path <- "D:/1PhDwork/0GPP_China/4shum/8day/shum_"
+pres_path <- "D:/1PhDwork/0GPP_China/3pres/8day/pres_"
+
+
+#out_path <- "D:/1PhDwork/0GPP_China/5vpd/vpd_fang/vpd_"
+out_path <- "D:/1PhDwork/0GPP_China/5rh/rh_fang/rh_"
+
+yr_days <- c(365, 365, 365, 366, 365, 365, 365, 366, 365, 365, 
+             365, 366, 365, 365, 365, 366, 365, 365)
+
+for(yr in 1979:2018){
+  for(d in 1:46){
+    print(d)
+    tavg <- rast(paste0(tavg_path, as.character(yr), "_8d", as.character(d), ".tif"))
+    tavg <- tavg + 273.15
+    shum <- rast(paste0(shum_path, as.character(yr), "_8d", as.character(d), ".tif"))
+    pres <- rast(paste0(pres_path, as.character(yr), "_8d", as.character(d), ".tif"))
+    pres <- pres / 100.0
+    e <- pres / (0.378 + 0.622 / shum)
+    es <- 6.112 * exp(((tavg - 273.15) * 17.67)/(tavg - 273.15 + 243.5))
+    rh <- e / es *  100
+    rh[rh > 100] <- 100
+    #vpd <- (es - e) * 100.0
+    #vpd[vpd < 0] <- 0
+    #out_name <- paste0(out_path, as.character(yr), "_8d", as.character(d), '.tif')
+    out_name <- paste0(out_path, as.character(yr), "_8d", as.character(d), '.tif')
+    writeRaster(rh, out_name, overwrite=TRUE)
+  }
+}
+
+
+
+
+## annual mean
+library(raster)
+
+vpd_path <- "D:/1PhDwork/2CLM/vpd/vpd_"
+vpd_yr_path <- "D:/1PhDwork/2CLM/vpd_yr/vpd_"
+
+for(yr in 2001:2018){
+  s <- brick()
+  for(d in 1:yr_days[yr-2000]){
+    vpd_day <- raster(paste0(vpd_path, as.character(yr), as.character(d),'.tif'))
+    s <- addLayer(s, vpd_day)
+  }
+  vpd_yr <- mean(s)
+  out_name <- paste0(vpd_yr_path, as.character(yr),'.tif')
+  writeRaster(vpd_yr, out_name, format='GTiff', overwrite=TRUE)
+}
+
+
+
+library(raster)
+library(parallel)
+library(abind)
+library(ncdf4)
+library(zoo)
+library(terra)
+library(humidity)
+
+
+
+
+
+cl.cores <- detectCores()
+cl<-makeCluster(4)
+
+
+
+viArray_sm <- parApply(cl, viArray, c(1,2), getBiseVI)
+
+
+gpp_path <- "E:/00_modis/tmp_gpp/"
+vi_file<-list.files(gpp_path, pattern = "hdf")
+
+tmp_pat <- paste0('2001')
+vi_file<-list.files(gpp_path, pattern = tmp_pat)
+
+
+
+nc_file <- "E:/00_temp/004_China_LUCC_GPP/004_China_clm/shum/shum_ITPCAS-CMFD_V0106_B-01_01dy_010deg_200101-200112.nc"
+nc_data <- rast(nc_file)
+mask <- nc_data[[1]]
+mask[mask > - 1] <- 1
+mask[is.na(mask)] <- 0
+plot(mask)
+writeRaster(mask, "D:/clm_mask.tif")
+
+
+
+forest_type <- rast("D:/1PhDwork/0GPP_China/6lucc/china_cover_forest_type.tif")
+fext <- ext(73, 136, 17, 54)
+ext(forest_type) <- fext
+writeRaster(forest_type, "D:/forest_type.tif")
+forest_type[is.na(forest_type)] <- 1
+forest_type[forest_type > 0] <- 1
+writeRaster(forest_type, "D:/land.tif")
+
+
+days <- c(001,009,017,025,033,041,049,057,065,
+          073,081,089,097,105,113,121,129,137,
+          145,153,161,169,177,185,193,201,209,
+          217,225,233,241,249,257,265,273,281,
+          289,297,305,313,321,329,337,345,353,361)
+
+lat <- rast("D:/1PhDwork/0GPP_China/6lucc/lat.tif")
+out_path <- "D:/1PhDwork/0GPP_China/8costha_m/costha_m"
+
+for(dd in 1:45){
+  b <- 2*pi*(days[dd]-1 + 4)/365
+  a <- (0.006918-0.399912*cos(b)+0.070257*sin(b)-0.006758*cos(2*b)+0.000907*sin(2*b)-0.002697*cos(3*b)+0.00148*sin(3*b))*(180/pi)
+  delta <- lat - a
+  delta_abs <- abs(delta)
+  costha_m <- 90 - delta_abs
+  out_name <- paste0(out_path, "_8d", as.character(dd), ".tif")
+  writeRaster(costha_m, out_name)
+}
+
+b <- 2*pi*(363-1)/365
+a <- (0.006918-0.399912*cos(b)+0.070257*sin(b)-0.006758*cos(2*b)+0.000907*sin(2*b)-0.002697*cos(3*b)+0.00148*sin(3*b))*(180/pi)
+delta <- lat - a
+delta_abs <- abs(delta)
+costha_m <- 90 - delta_abs
+out_name <- paste0(out_path, "_8d46.tif")
+writeRaster(costha_m, out_name)
+
