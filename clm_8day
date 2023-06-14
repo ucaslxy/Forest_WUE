@@ -1,0 +1,141 @@
+library(terra)
+
+shum_path <- "D:/1PhDwork/0GPP_China/4shum/nc/"
+out_path <- "D:/1PhDwork/0GPP_China/4shum/8day/"
+
+is_leap <- function(yr_num){
+  yr_days <- 365
+  yr_100 <- yr%%100
+  yr_4 <- yr%%4
+  if((yr_100 == 0) & (yr_4 == 0)){
+    yr_days <- 366
+  }else if((yr_100 != 0) & (yr_4 == 0)){
+    yr_days <- 366
+  }
+  return(yr_days)
+}
+
+cn_ext <- ext(70, 140, 15, 55)
+s <- rast(nrows=800, ncols=1400, xmin=70, xmax=140, ymin=15, ymax=55)
+
+for(yr in 1979:2018){
+  yr_tdays <- is_leap(yr)
+  print(yr_tdays)
+  yr_str <- as.character(yr)
+  shum_file <- paste0(shum_path, "shum_ITPCAS-CMFD_V0106_B-01_01dy_010deg_", yr_str, "01-", yr_str, "12.nc")
+  shum <- rast(shum_file)
+  for(did in 1:45){
+    dbid <- did * 8 + 1
+    deid <- did * 8
+    shum_8d_tmp <- mean(shum[[dbid: deid]])
+    ext(shum_8d_tmp) <- cn_ext
+    shum_8d <- resample(shum_8d_tmp, s, method="bilinear")
+    out_name <- paste0(out_path, "shum_", as.character(yr), "_8d", as.character(did), ".tif")
+    writeRaster(shum_8d, out_name, overwrite=TRUE)
+  }
+  shum_8d_tmp <- mean(shum[[361: yr_tdays]])
+  ext(shum_8d_tmp) <- cn_ext
+  shum_8d <- resample(shum_8d_tmp, s, method="bilinear")
+  out_name <- paste0(out_path, "shum_", as.character(yr), "_8d46.tif")
+  writeRaster(shum_8d, out_name, overwrite=TRUE)
+}
+
+
+
+
+library(raster)
+
+clm_path <- "F:/TMP_Fang_New/"
+out_path <- "D:/1PhDwork/0GPP_China/2temp/day_fang/"
+mdays_nleap <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+mdays_leap <- c(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+s <- rast(nrows=800, ncols=1400, xmin=70, xmax=140, ymin=15, ymax=55)
+
+for(yr in 1979:2018){
+  print(yr)
+  yr_days <- is_leap(yr)
+  mdays <- mdays_nleap
+  if(yr_days == 366){
+    mdays <- mdays_leap
+  }
+  did <- 0
+  for(m in 1:12){
+    m_str <- paste0('0', as.character(m))
+    if(m >= 10){
+      m_str <- as.character(m) 
+    }
+    for(d in 1:mdays[m]){
+      d_str <- paste0('0', as.character(d))
+      if(d >= 10){
+        d_str <- as.character(d)
+      }
+      temp_data <- rast(paste0(clm_path, as.character(yr), "_avg/", as.character(yr), m_str, d_str,'_avg.tif'))
+      did <- did + 1
+      out_name <- paste0(out_path, "temp_", as.character(yr), "_d", as.character(did), ".tif")
+      writeRaster(temp_data, out_name, overwrite=TRUE)
+    }
+  }
+}
+
+
+library(raster)
+temp_path <- "D:/1PhDwork/0GPP_China/2temp/day_fang/temp_"
+out_path <- "D:/1PhDwork/0GPP_China/2temp/8day_fang/temp_"
+
+
+cn_ext <- extent(70, 140, 15, 55)
+
+for(yr in 1979:2018){
+  yr_tdays <- is_leap(yr)
+  print(yr_tdays)
+ 
+  s_brick <- brick()
+  d_flag <- 0
+  for(d in 1:360){
+    temp_filename <- paste0(temp_path, as.character(yr), "_d", as.character(d), ".tif")
+    temp <- raster(temp_filename)
+    s_brick <- addLayer(s_brick, temp)
+    d_flag <- d_flag + 1
+    if(d_flag == 8){
+      temp_mean <- mean(s_brick)
+      extent(temp_mean) <- cn_ext
+      temp_res <- raster(nrows=800, ncols=1400)
+      extent(temp_res) <- cn_ext
+      temp_res <- resample(temp_mean, temp_res,method='bilinear')
+      d_str <- as.character(d%/%8)
+      out_name <- paste0(out_path, as.character(yr), "_8d", d_str, ".tif")
+      writeRaster(temp_res, out_name, format = 'GTiff', overwrite=TRUE)
+      d_flag = 0
+      s_brick <- brick()
+    }
+  }
+  ## last 8 day
+  s_brick <- brick()
+  for(d in 361:yr_tdays){
+    temp_filename <- paste0(temp_path, as.character(yr), "_d", as.character(d), ".tif")
+    temp <- raster(temp_filename)
+    s_brick <- addLayer(s_brick, temp)
+  }
+  temp_mean <- mean(s_brick)
+  extent(temp_mean) <- cn_ext
+  temp_res <- raster(nrows=800, ncols=1400)
+  extent(temp_res) <- cn_ext
+  temp_res <- resample(temp_mean, temp_res,method='bilinear')
+  out_name <- paste0(out_path, as.character(yr), "_8d46.tif")
+  writeRaster(temp_res, out_name, format = 'GTiff', overwrite=TRUE)
+}
+
+
+temp_path <- "F:/TMP_Fang_New/0TMP_day/TMP_avg/tmp_avg_"
+out_path <- 
+
+s <- rast(nrows=800, ncols=1400, xmin=70, xmax=140, ymin=15, ymax=55)
+
+library(terra)
+
+tmp_file <- "F:/CRU/1tmax/crujra.v2.3.5d.tmax.1901.365d.noc.nc"
+tmp_ras <- rast(tmp_file)
+
+
+
